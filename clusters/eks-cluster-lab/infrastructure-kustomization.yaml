@@ -1,15 +1,13 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: demo
+  name: infrastructure
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./clusters/eks-cluster-lab/demo
+  path: ./clusters/eks-cluster-lab/infrastructure
   prune: true
   sourceRef:
     kind: GitRepository
     name: flux-system
   timeout: 2m0s
-  dependsOn:
-  - name: infrastructure # Ensures metrics-server is deployed first
