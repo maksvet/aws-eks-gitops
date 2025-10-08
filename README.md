@@ -2,6 +2,10 @@
 
 A demo-ready Kubernetes deployment showcasing GitOps practices with Flux CD, featuring a containerized nginx application with auto-scaling, public access via TLS/SSL, and disaster recovery considerations.
 
+http://app.maxlabxq9n.work.gd
+
+
+
 ## Directory Structure
 
 ```
