@@ -19,6 +19,7 @@ jobs:
       packages: write
       id-token: write
       security-events: write
+      pull-requests: write
 
     steps:
       - name: Checkout code
