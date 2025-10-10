@@ -2,7 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
 - namespace.yaml
-# - nginx-deployment.yaml
-# - nginx-service.yaml
-# - nginx-ingress.yaml
-# - nginx-hpa.yaml
+- sample-app-deployment.yaml
+- sample-app-service.yaml
+- sample-app-ingress.yaml
+- sample-app-hpa.yaml
