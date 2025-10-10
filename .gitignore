@@ -1,0 +1,76 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+logs/
+*.log
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Terraform (if added later)
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+override.tf
+override.tf.json
+
+# Kubernetes secrets (never commit these!)
+*secret*.yaml
+*-secret.yaml
+secrets/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Build artifacts
+dist/
+build/
+coverage/
+
+# Docker
+.dockerignore
+
+# AWS
+.aws/
+
+# Test files
+*.test.js
+*.spec.js
+__tests__/
+test-results/
+
+# CI/CD artifacts
+trivy-results.sarif
+*.sarif
+
+# Backup files
+*.backup
+*.old

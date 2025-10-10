@@ -1,141 +1,175 @@
 # AWS EKS GitOps Demo
 
-A demo-ready Kubernetes deployment showcasing GitOps practices with Flux CD, featuring a containerized nginx application with auto-scaling, public access via TLS/SSL, and disaster recovery considerations.
+Production-ready Kubernetes deployment on AWS EKS Auto Mode with GitOps automation, featuring a containerized Express.js application, auto-scaling, and disaster recovery capabilities.
 
-http://app.maxlabxq9n.work.gd
+**Live Demo:** http://app.maxlabxq9n.work.gd
 
+---
 
-
-## Directory Structure
+## Architecture
 
 ```
-aws-eks-gitops/
-├── clusters/
-│   └── eks-cluster-lab/
-│       ├── flux-system/          # Flux CD configuration
-│       └── demo/                 # Demo application
-│           ├── namespace.yaml
-│           ├── nginx-deployment.yaml
-│           ├── nginx-service.yaml
-│           ├── nginx-ingress.yaml
-│           ├── nginx-hpa.yaml
-│           └── kustomization.yaml
-└── README.md
+Developer → GitHub → CI/CD (Actions) → GHCR → GitOps (Flux CD) → EKS Auto Mode → ALB → User
 ```
 
+**Key Features:**
+- ✅ GitOps workflow with Flux CD
+- ✅ Automated CI/CD pipeline with GitHub Actions
+- ✅ Horizontal Pod Autoscaling (HPA) based on CPU
+- ✅ AWS Application Load Balancer with health checks
+- ✅ Security scanning with Trivy
+- ✅ Multi-AZ high availability
 
-## Architecture Overview
-
-This setup demonstrates:
-- **GitOps workflow** using Flux CD for continuous deployment
-- **Auto-scaling** with Horizontal Pod Autoscaler based on CPU metrics
-- **Public access** with AWS Load Balancer and TLS/SSL certificates
-- **Infrastructure as Code** with all manifests version-controlled
 
 ## Prerequisites
 
-- AWS CLI configured with appropriate credentials
-- kubectl installed
-- Flux CLI installed
-- Domain name with DNS configured
-- GitHub repository access
+- AWS EKS Auto Mode cluster [eks-cluster-lab](https://github.com/maksvet/aws-eks-terraform)
+- kubectl configured for cluster access
+- Flux CD installed (`flux bootstrap github ...`)
+- AWS Load Balancer Controller installed
+- Domain with DNS configured (app.maxlabxq9n.work.gd)
 
-## Deployed Components
+---
 
-### Kubernetes Resources
+## CI/CD Pipeline
 
-1. **Deployment** (`nginx-deployment.yaml`)
-   - Starts with 1 replica
-   - Resource requests: 100m CPU, 128Mi memory
-   - Resource limits: 500m CPU, 256Mi memory
-   - Uses official nginx:latest image
+### How It Works
 
-2. **Service** (`nginx-service.yaml`)
-   - Type: LoadBalancer
-   - Exposes port 80
-   - AWS automatically provisions an ELB
-
-3. **Ingress** (`nginx-ingress.yaml`)
-   - NGINX Ingress Controller
-   - Automatic TLS certificate via cert-manager
-   - Routes traffic to nginx service
-
-4. **HPA** (`nginx-hpa.yaml`)
-   - Min replicas: 1
-   - Max replicas: 2
-   - Target CPU utilization: 70%
-   - Automatically scales based on load
-
-## Deployment Steps
-
-### 1. Install Required Controllers
-
-```bash
-# Install AWS Load Balancer Controller
-kubectl apply -k "github.com/aws/eks-charts/stable/aws-load-balancer-controller//crds?ref=master"
-helm repo add eks https://aws.github.io/eks-charts
-helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
-  -n kube-system \
-  --set clusterName=eks-cluster-lab
-
-# Install NGINX Ingress Controller
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/aws/deploy.yaml
-
-# Install cert-manager for TLS
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
-
-# Install metrics-server for HPA
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+```
+Code Push → Build Image → Security Scan → Push to GHCR → Create PR → Manual Merge → Flux Deploys
 ```
 
-### 2. Configure DNS
+**Trigger:** 
+- Push to `main` branch or changes in `app/` directory
+- Manual dispatch via GitHub Actions
 
-After the LoadBalancer is created, get the external IP:
+**Pipeline Steps:**
+1. **Build** - Docker image from [app/Dockerfile](app/Dockerfile)
+2. **Tag** - `ghcr.io/maksvet/aws-eks-gitops/sample-app:<commit-sha>` + `latest`
+3. **Scan** - Trivy vulnerability scan (results in Security tab)
+4. **Update** - Creates PR updating [sample-app-deployment.yaml](clusters/eks-cluster-lab/demo/sample-app-deployment.yaml)
+5. **Deploy** - Flux applies changes after PR merge
+
+**Security:**
+- No hard-coded secrets (uses `GITHUB_TOKEN`)
+- Immutable image tags (commit SHA)
+- Automated vulnerability scanning
+- Pull request workflow prevents accidental deployments
+
+### Local Testing
 
 ```bash
-kubectl get svc nginx-service -n demo
+# Test application
+cd app && npm install && npm start
+curl http://localhost:8080
+
+# Test Docker build
+docker build -t sample-app:test ./app
+docker run -p 8080:8080 sample-app:test
 ```
 
-Create an A record in your DNS provider pointing `nginx-demo.yourdomain.com` to the LoadBalancer's external IP/hostname.
+### Monitoring Pipeline
 
+- **Actions:** https://github.com/maksvet/aws-eks-gitops/actions
+- **Security:** https://github.com/maksvet/aws-eks-gitops/security
+- **Pull Requests:** Auto-created by CI after successful build
 
+---
+
+## Kubernetes Resources
+
+| Resource | Config | Purpose |
+|----------|--------|---------|
+| **Deployment** | 2 replicas, 100m/128Mi requests, 500m/256Mi limits | Runs Express.js app with health checks |
+| **Service** | ClusterIP on port 80 → 8080 | Internal service discovery |
+| **Ingress** | AWS ALB, target-type: ip | Public HTTPS access via domain |
+| **HPA** | 2-10 replicas, 70% CPU target | Auto-scaling based on load |
+| **Namespace** | `demo` | Resource isolation |
+
+**Key Configuration:**
+- Image: `ghcr.io/maksvet/aws-eks-gitops/sample-app:<sha>`
+- Health checks: liveness (10s delay) + readiness (5s delay)
+- HPA behavior: aggressive scale-up, gradual scale-down (5min stabilization)
+
+### Bootstrap Flux CD
+
+```bash
+export GITHUB_TOKEN=<token>
+export GITHUB_USER=<username>
+
+flux bootstrap github \
+  --owner=$GITHUB_USER \
+  --repository=aws-eks-gitops \
+  --branch=main \
+  --path=./clusters/eks-cluster-lab \
+  --personal
+
+# Verify Flux
+flux check
+kubectl get kustomizations -n flux-system
+```
+
+### Verify Deployment
+
+```bash
+# Check application
+kubectl get all -n demo
+kubectl get hpa -n demo
+kubectl logs -n demo -l app=sample-app
+
+# Get ALB hostname
+kubectl get ingress sample-app-ingress -n demo
+
+# Test endpoint
+curl http://app.maxlabxq9n.work.gd
+```
+
+---
 
 ## Disaster Recovery Strategy
 
-### Multi-Region and Multi-AZ Approach
+### Current: Single Region, Multi-AZ
+- **EKS Auto Mode** distributes pods across multiple AZs automatically
+- **ALB health checks** route traffic only to healthy pods
+- **HPA** ensures minimum 2 replicas for high availability
 
-**Current Setup (Single Region, Multi-AZ):**
-The EKS cluster is configured with worker nodes distributed across multiple availability zones within a single AWS region. This provides high availability against AZ-level failures. Kubernetes automatically distributes pods across AZs using pod topology spread constraints.
+### Extended: Multi-Region DR
 
-**Extended DR Strategy for Multi-Region:**
+**1. Active-Passive Multi-Region:**
+- Deploy identical EKS cluster in secondary region (us-west-2)
+- Use Route 53 failover routing with health checks
+- Flux CD maintains identical configs via same Git repo
+- Container images replicated via GHCR (multi-region by default)
 
-To extend this setup for full disaster recovery across regions, implement the following:
+**2. Data & State Management:**
+- Velero for cluster backups to S3 with cross-region replication
+- External state stores (RDS, DynamoDB Global Tables) with cross-region replication
+- AWS Secrets Manager with cross-region replication for secrets
 
-1. **Active-Passive Multi-Region Setup:**
-   - Deploy identical EKS clusters in a secondary AWS region (e.g., us-west-2 as backup to us-east-1)
-   - Use AWS Route 53 health checks with failover routing policies to automatically route traffic to the healthy region
-   - Replicate container images to Amazon ECR repositories in both regions
-   - Use Flux CD to maintain identical configurations across regions via GitOps
+**3. Automated Failover:**
+- Route 53 health checks monitor application endpoints
+- DNS TTL: 60 seconds for fast failover
+- Automated DR drills quarterly using chaos engineering
+- **RTO:** < 15 minutes | **RPO:** < 5 minutes
 
-2. **Data and State Management:**
-   - Implement Velero for cluster-level backups (pods, services, persistent volumes)
-   - Schedule automated backups to S3 buckets with cross-region replication enabled
-   - For stateful applications, use AWS RDS with cross-region read replicas or DynamoDB Global Tables
-   - Store critical secrets in AWS Secrets Manager with cross-region replication
+**4. Cost Optimization:**
+- Run DR cluster with minimal capacity (1-2 nodes)
+- Auto-scale up during failover events
+- ~70% cost reduction vs. active-active setup
 
-3. **Automated Failover:**
-   - Configure Route 53 health checks to monitor application endpoints
-   - Set DNS TTL to 60 seconds for faster failover
-   - Implement automated disaster recovery drills using chaos engineering tools (e.g., Litmus Chaos)
-   - Use Flux CD to automatically reconcile and deploy to the DR cluster
-   - Maintain RTO (Recovery Time Objective) < 15 minutes and RPO (Recovery Point Objective) < 5 minutes
+---
 
-4. **Monitoring and Alerting:**
-   - Deploy Prometheus and Grafana for metrics across all regions
-   - Configure CloudWatch cross-region dashboards
-   - Set up PagerDuty/Opsgenie alerts for failover events
-   - Implement synthetic monitoring for external health checks
+## Assignment Deliverables
 
-**Cost Optimization:**
-Run the DR cluster with minimal node capacity (1-2 nodes) and use Cluster Autoscaler to scale up during failover events, reducing standby costs by ~70%.
+### Assignment 1: Kubernetes Deployment & Scaling ✅
+- **Manifests:** [clusters/eks-cluster-lab/demo/](clusters/eks-cluster-lab/demo/)
+- **Public Access:** http://app.maxlabxq9n.work.gd
+- **HPA:** CPU-based auto-scaling (2-10 replicas)
+- **DR Strategy:** Multi-region active-passive approach documented above
 
+### Assignment 2: IaC + CI/CD ✅
+- **IaC:** EKS cluster via Terraform [maksvet/aws-eks-terraform](https://github.com/maksvet/aws-eks-terraform)
+- **IaC:** Kubernetes manifests managed via GitOps (Flux CD)
+- **CI/CD:** [.github/workflows/ci-workflow.yaml](.github/workflows/ci-workflow.yaml)
+- **Registry:** GitHub Container Registry (GHCR)
+- **Security:** Trivy scanning, no hard-coded secrets
